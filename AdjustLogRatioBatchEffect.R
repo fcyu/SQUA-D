@@ -219,8 +219,8 @@ adjustBatchEffect <- function(upspTable, psmTable, debug = FALSE) {
 
     adjustedData <- adjust(expData, length(allBatchType), meanOnly = TRUE, plotPrior = debug)
 
-    upspTable["adjusted_log_ratio_mean"] <- unlist(lapply(adjustedData, function(x) { mean(x$Y, na.rm = TRUE) }))
-    upspTable["adjusted_log_ratio_sd"] <- unlist(lapply(adjustedData, function(x) { sd(x$Y, na.rm = TRUE) }))
+    upspTable["Adjusted_log_ratio_mean"] <- unlist(lapply(adjustedData, function(x) { mean(x$Y, na.rm = TRUE) }))
+    upspTable["Adjusted_log_ratio_sd"] <- unlist(lapply(adjustedData, function(x) { sd(x$Y, na.rm = TRUE) }))
     upspTable["p_value"] <- unlist(lapply(adjustedData, calPValue))
     upspTable <- upspTable[is.finite(upspTable$p_value),]
     upspTable["BH_FDR"] <- p.adjust(upspTable$p_value, method = "BH")
