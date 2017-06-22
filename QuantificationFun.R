@@ -95,25 +95,45 @@ calculateMs2Intensity <- function(scanNum, spectra) {
 }
 
 
+calculateDeltaScore <- function(idx, scanNums, peptides, mascotDatTable) {
+  ptmFreePeptide = str_replace_all(peptides[idx], "[0-9\\.\\(\\)nc\\-]+", "")
+  subTable <- mascotDatTable[mascotDatTable$scanNum == scanNums[idx] & mascotDatTable$ptmFreePeptide == ptmFreePeptide,]
+  if (nrow(subTable) == 1) {
+    return(unlist(subTable$score))
+  } else if (nrow(subTable) > 1) {
+    scores <- sort(unlist(subTable$score), decreasing = TRUE)
+    return(scores[1] - scores[2])
+  } else {
+    cat(str_c(Sys.time(), ": Cannot find the dat results for ", scanNums[idx], " ", peptides[idx], "\n", sep = ""))
+    return(1)
+  }
+}
+
+
 analyzeEachRun <- function(runName, mascotResultDir, spectraDir, experimentStructure, db, ppmTol, rtTol, minCharge, maxCharge, threadNum, modTable, lightLabel, heavyLabel, kingMod) {
   cat(str_c(Sys.time(), ": Analyzing ", runName, "...\n", sep = ""))
-  mascotResultPath <- str_c(mascotResultDir, runName, ".percolator.psms", sep = "")
-  
-  mascotTable <- read_tsv(mascotResultPath, col_types = "cdddc", quote = "", comment = "")
+  mascotTable <- read_tsv(str_c(mascotResultDir, runName, ".percolator.psms", sep = ""), col_types = "cdddc", quote = "", comment = "")
   mascotTable <- mascotTable[mascotTable$`q-value` <= 0.01,]
+  
+  mascotDatTable <- read_tsv(str_c(mascotResultDir, runName, "_target.dat.tsv", sep = ""), col_types = "ciccd", quote = "", comment = "")
+  temp <- str_match(mascotDatTable$scanId, "scan=([0-9]+)\"")
+  mascotDatTable$scanNum <- as.integer(temp[, 2])
   
   if (nrow(mascotTable) > 0) {
     scanInfoMatrix <- str_match(mascotTable$PSMId, "scan=([0-9]+)\";rt:([0-9.]+);mz:([0-9.]+);charge:([0-9])")
+    scanNums <- as.integer(scanInfoMatrix[, 2])
     
     peptide <- unlist(lapply(mascotTable$peptide, formatPeptide, modTable))
     labelInfoTable <- lapply(peptide, getLabelInfo, lightLabel, heavyLabel)
     labelInfoMatrix <- matrix(unlist(labelInfoTable), nrow = length(labelInfoTable), byrow = TRUE)
     
+    deltaScore <- unlist(lapply(seq(1, length(scanNums)), calculateDeltaScore, scanNums, peptide, mascotDatTable))
+    
     psmTable <- data.frame(
       run_name = runName,
       batch_type = experimentStructure[experimentStructure$run_name == runName,]$batch_type,
       experiment_type = experimentStructure[experimentStructure$run_name == runName,]$experiment_type,
-      scan_num = as.integer(scanInfoMatrix[, 2]),
+      scan_num = scanNums,
       spectrum_mz = as.numeric(scanInfoMatrix[, 4]),
       spectrum_mass = (as.numeric(scanInfoMatrix[, 4]) - 1.00727646688) * as.numeric(scanInfoMatrix[, 5]),
       theo_mass = unlist(lapply(peptide, calMass)),
@@ -126,6 +146,7 @@ analyzeEachRun <- function(runName, mascotResultDir, spectraDir, experimentStruc
       UPSP = NA,
       label_type = labelInfoMatrix[, 1], # heavy or light labelling
       score = as.numeric(mascotTable$score),
+      delta_score = deltaScore,
       q = as.numeric(mascotTable$`q-value`),
       another_mz = NA,
       original_peptide = peptide,
@@ -263,8 +284,7 @@ generateUpspTable <- function(i, allUpsp, psmTableFinal) {
     Annotation = psmTable[1,]$protein_anno,
     Peptide = str_c(unique(psmTable$ptm_free_peptide), collapse = ";"),
     Modified_peptide = str_c(unique(psmTable$original_peptide), collapse = ";"),
-    PTM_site_localization_score = NA,
-    Delta_score = NA,
+    Mascot_delta_score = max(psmTable$delta_score),
     Forward_1 = mean(psmTable[psmTable$experiment_type == "f1",]$normalized_log_ratio, na.rm = TRUE),
     Forward_2 = mean(psmTable[psmTable$experiment_type == "f2",]$normalized_log_ratio, na.rm = TRUE),
     Forward_3 = mean(psmTable[psmTable$experiment_type == "f3",]$normalized_log_ratio, na.rm = TRUE),

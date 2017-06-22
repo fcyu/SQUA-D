@@ -16,18 +16,18 @@ library(stringr)
 library(readr)
 
 
-debugSource("QuantificationFun.R")
+source("QuantificationFun.R")
 source("AdjustLogRatioBatchEffect.R")
 source("XIC.R")
 
 
 # parameters. Will be put to command arguement later on
-experimentStructurePath <- "D:\\Dropbox\\Results\\Quantification\\Acetylation\\12batches\\experiment_structure.tsv"
+experimentStructurePath <- "D:\\Dropbox\\Results\\Quantification\\Acetylation\\experiment_structure.tsv"
 mascotResultDir <- "D:\\Dropbox\\Results\\Mascot\\Acetylation\\"
 spectraDir <- "D:\\Li_group\\Acetylation_raw_data\\"
-fastaPath <- "D:\\Dropbox\\Results\\Quantification\\Acetylation\\12batches\\TAIR10_pep_20101214_updated_with_AT3G53420.3.fasta"
-outputDir <- "D:\\Dropbox\\Results\\Quantification\\Acetylation\\12batches\\"
-allPsmTablePath <- "D:\\Dropbox\\Results\\Quantification\\Acetylation\\12batches\\all_psm_table.tsv"
+fastaPath <- "D:\\Dropbox\\Results\\Quantification\\Acetylation\\TAIR10_pep_20101214_updated_with_AT3G53420.3.fasta"
+outputDir <- "D:\\Dropbox\\Results\\Quantification\\Acetylation\\"
+allPsmTablePath <- "D:\\Dropbox\\Results\\Quantification\\Acetylation\\all_psm_table.tsv"
 # allPsmTablePath <- ""
 nsaf <- FALSE
 sin <- FALSE
@@ -39,9 +39,9 @@ labellingReplicateT <- 1
 experimentReplicateT <- 5
 frT <- 0.15
 performBatchEffectAdjustment <- TRUE
-summarizeProteinModCount <- TRUE
 minCharge <- 2
 maxCharge <- 5
+deltaScoreT <- 10
 
 # constants
 modTable <- data.frame(mod = character(), mass = character(), stringsAsFactors = FALSE)
@@ -61,7 +61,7 @@ experimentStructure <- read.table(experimentStructurePath, sep = "\t", quote = "
 psmTableFinal <- NULL
 if (str_length(allPsmTablePath) > 0) {
   cat(str_c(Sys.time(), ": Already have the PSM table. Reading it...\n", sep = ""))
-  psmTableFinal <- read.table(allPsmTablePath, sep = "\t", quote = "", header = TRUE, comment.char = "", na.strings = c("NA", ""), colClasses = c("character", rep("factor", 2), "integer", rep("numeric", 4), "integer", rep("character", 2), "integer", rep("character", 2), "factor", rep("numeric", 3), "character", "factor", rep("numeric", 4), "integer", rep("numeric", 6)))
+  psmTableFinal <- read.table(allPsmTablePath, sep = "\t", quote = "", header = TRUE, comment.char = "", na.strings = c("NA", ""), colClasses = c("character", rep("factor", 2), "integer", rep("numeric", 4), "integer", rep("character", 2), "integer", rep("character", 2), "factor", rep("numeric", 4), "character", "factor", rep("numeric", 4), "integer", rep("numeric", 6)))
 } else {
   cat(str_c(Sys.time(), ": Analyzing each Mascot result...\n", sep = ""))
   # read protein database
@@ -75,18 +75,36 @@ if (str_length(allPsmTablePath) > 0) {
 cl <- makeCluster(threadNum)
 clusterExport(cl, c("str_detect", "str_c", "str_match_all", "str_locate", "str_split", "psmReplicateT"))
 
-# generate Pretable1
+cat(str_c(Sys.time(), ": Filtering PSMs based on delta score threshold ", deltaScoreT, "...\n", sep = ""))
+psmTableFinal <- psmTableFinal[psmTableFinal$delta_score >= deltaScoreT,]
+
 cat(str_c(Sys.time(), ": Generating Pretable1...\n", sep = ""))
 allPeptide <- unique(psmTableFinal$label_free_peptide)
 peptideTableList <- parLapply(cl, seq(1, length(allPeptide)), generatePeptideTable, allPeptide, psmTableFinal)
 peptideTable <- ldply(peptideTableList, data.frame)
 write.xlsx2(peptideTable, str_c(outputDir, "Pretable1.xlsx"), showNA = FALSE, row.names = FALSE, col.names = TRUE)
 
-# filtering based on PSM replication threshold
+# summarize number of king modification site in each protein from all PSMs
+cat(str_c(Sys.time(), ": Summarizing protein-modification count from all PSMs...\n", sep = ""))
+allUpsp <- unlist(str_split(unlist(psmTableFinal$UPSP), ";"))
+allProId <- unique(unlist(str_extract(allUpsp, "[^-]+")))
+proteinModTable <- data.frame(proteinId = allProId, site = NA, stringsAsFactors = FALSE)
+for (upsp in allUpsp) {
+  tempVector <- str_extract_all(upsp, "[^-]+")[[1]]
+  if (is.na(proteinModTable[proteinModTable$proteinId == tempVector[1], ]$site)) {
+    proteinModTable[proteinModTable$proteinId == tempVector[1],]$site <- list(tempVector[seq(2, length(tempVector))])
+  } else {
+    proteinModTable[proteinModTable$proteinId == tempVector[1],]$site <- list(unique(c(unlist(proteinModTable[proteinModTable$proteinId == tempVector[1],]$site), tempVector[seq(2, length(tempVector))])))
+  }
+}
+proteinModNumTable <- data.frame(proteinId = allProId, count = unlist(lapply(proteinModTable$site, length)))
+write.table(proteinModNumTable, str_c(outputDir, "all_protein_mod_count.tsv"), quote = FALSE, sep = "\t", na = "", row.names = FALSE)
+
 cat(str_c(Sys.time(), ": Filtering PSMs with more than ", psmReplicateT, " replicates...\n", sep = ""))
 allPeptide <- unique(psmTableFinal$original_peptide)
 filteredIdx <- unlist(parLapply(cl, allPeptide, filterBasedOnPsmReplication, psmTableFinal))
 psmTableFinal <- psmTableFinal[filteredIdx,]
+
 write.table(psmTableFinal, str_c(outputDir, "psm_table.tsv"), quote = FALSE, sep = "\t", na = "", row.names = FALSE)
 
 # generate Pretable2
@@ -96,23 +114,21 @@ peptideTableList <- parLapply(cl, seq(1, length(allPeptide)), generatePeptideTab
 peptideTable <- ldply(peptideTableList, data.frame)
 write.xlsx2(peptideTable, str_c(outputDir, "Pretable2.xlsx"), showNA = FALSE, row.names = FALSE, col.names = TRUE)
 
-if (summarizeProteinModCount) {
-  # summarize number of king modification site in each protein
-  cat(str_c(Sys.time(), ": Summarizing protein-modification count...\n", sep = ""))
-  allUpsp <- unlist(str_split(unlist(psmTableFinal$UPSP), ";"))
-  allProId <- unique(unlist(str_extract(allUpsp, "[^-]+")))
-  proteinModTable <- data.frame(proteinId = allProId, site = NA, stringsAsFactors = FALSE)
-  for (upsp in allUpsp) {
-    tempVector <- str_extract_all(upsp, "[^-]+")[[1]]
-    if (is.na(proteinModTable[proteinModTable$proteinId == tempVector[1], ]$site)) {
-      proteinModTable[proteinModTable$proteinId == tempVector[1],]$site <- list(tempVector[seq(2, length(tempVector))])
-    } else {
-      proteinModTable[proteinModTable$proteinId == tempVector[1],]$site <- list(unique(c(unlist(proteinModTable[proteinModTable$proteinId == tempVector[1],]$site), tempVector[seq(2, length(tempVector))])))
-    }
+# summarize number of king modification site in each protein
+cat(str_c(Sys.time(), ": Summarizing protein-modification count from filtered PSMs...\n", sep = ""))
+allUpsp <- unlist(str_split(unlist(psmTableFinal$UPSP), ";"))
+allProId <- unique(unlist(str_extract(allUpsp, "[^-]+")))
+proteinModTable <- data.frame(proteinId = allProId, site = NA, stringsAsFactors = FALSE)
+for (upsp in allUpsp) {
+  tempVector <- str_extract_all(upsp, "[^-]+")[[1]]
+  if (is.na(proteinModTable[proteinModTable$proteinId == tempVector[1], ]$site)) {
+    proteinModTable[proteinModTable$proteinId == tempVector[1],]$site <- list(tempVector[seq(2, length(tempVector))])
+  } else {
+    proteinModTable[proteinModTable$proteinId == tempVector[1],]$site <- list(unique(c(unlist(proteinModTable[proteinModTable$proteinId == tempVector[1],]$site), tempVector[seq(2, length(tempVector))])))
   }
-  proteinModNumTable <- data.frame(proteinId = allProId, count = unlist(lapply(proteinModTable$site, length)))
-  write.table(proteinModNumTable, str_c(outputDir, "protein_mod_count.tsv"), quote = FALSE, sep = "\t", na = "", row.names = FALSE)
 }
+proteinModNumTable <- data.frame(proteinId = allProId, count = unlist(lapply(proteinModTable$site, length)))
+write.table(proteinModNumTable, str_c(outputDir, "protein_mod_count.tsv"), quote = FALSE, sep = "\t", na = "", row.names = FALSE)
 
 # filtering based on spectral counting criteria
 cat(str_c(Sys.time(), ": Filtering PSMs based on spectral counting criteria...\n", sep = ""))
