@@ -1,11 +1,11 @@
 # extract ion chromatogram
 
-library(xcms)
-library(caTools)
-library(stats)
-library(parallel)
-library(stringr)
-library(plyr)
+suppressMessages(suppressWarnings(library(xcms)))
+suppressMessages(suppressWarnings(library(caTools)))
+suppressMessages(suppressWarnings(library(stats)))
+suppressMessages(suppressWarnings(library(parallel)))
+suppressMessages(suppressWarnings(library(stringr)))
+suppressMessages(suppressWarnings(library(plyr)))
 
 ## A function to find the turning point
 # Based on MaxQuant criteria.

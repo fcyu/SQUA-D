@@ -255,7 +255,7 @@ generatePeptideTable <- function(i, allPeptide, psmTable) { # TODO: check
 }
 
 
-filterBasedOnPsmReplication <- function(x, psmTableFinal) {
+filterBasedOnPsmReplication <- function(x, psmTableFinal, psmReplicateT) {
   outputIdx <- which(psmTableFinal$original_peptide == x)
   if (length(outputIdx) >= psmReplicateT) {
     return(outputIdx)

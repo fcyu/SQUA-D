@@ -2,10 +2,10 @@
 # It is based on ComBat. The major difference is that we don't have X term in equation (2.1) because all runs are under the same "experimental condition"--half from control and half from treatment. Y_{ijg} is log-ratios.
 # Only batches that have more than two log ratios are adjusted.
 
-library(stats)
-library(MASS)
-library(plyr)
-library(stringr)
+suppressMessages(suppressWarnings(library(stats)))
+suppressMessages(suppressWarnings(library(MASS)))
+suppressMessages(suppressWarnings(library(plyr)))
+suppressMessages(suppressWarnings(library(stringr)))
 
 
 # A function of adjusting batch effect

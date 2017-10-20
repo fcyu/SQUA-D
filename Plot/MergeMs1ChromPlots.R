@@ -5,7 +5,7 @@ library(jpeg)
 rm(list = ls())
 
 # parameters
-plotsDir <- "D:\\Dropbox\\Results\\Quantification\\Acetylation\\12batches\\Pretable3.xlsx.plot\\selected_plots\\"
+plotsDir <- "D:\\Dropbox\\Results\\Quantification\\Acetylation\\Pretable3.xlsx.plot\\selected_plots\\"
 
 mergedPlotsDir <- paste(plotsDir, "merged\\", sep = "")
 if (!dir.exists(mergedPlotsDir)) {

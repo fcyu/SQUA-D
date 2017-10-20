@@ -104,9 +104,9 @@ plotXicMs1 <- function(xcmsRawObj, ppmTol, mzC, scanNumC, rtC, rtCLeft, rtCRight
 # main part
 cat(str_c(Sys.time(), ": Setting parameters...\n"))
 ppmTol <- 20 # twice of the MS1 tolerance from including the whole peak
-fdrT <- 0.05
-upspPath <- "D:\\Results\\Quantification\\Acetylation\\12batches\\Pretable3.xlsx"
-psmPath <- "D:\\Results\\Quantification\\Acetylation\\12batches\\filtered_psm_table.tsv"
+fdrT <- 0.1
+upspPath <- "D:\\Dropbox\\Results\\Quantification\\Acetylation\\Pretable3.xlsx"
+psmPath <- "D:\\Dropbox\\Results\\Quantification\\Acetylation\\filtered_psm_table.tsv"
 spectraDir <- "D:\\Li_group\\Acetylation_raw_data\\"
 
 cat(str_c(Sys.time(), ": Creating a dir holding dirs of plots...\n"))
@@ -116,9 +116,9 @@ if (!dir.exists(plotsDir)) {
 }
 
 cat(str_c(Sys.time(), ": Reading the table...\n"))
-upspTable <- read.xlsx2(upspPath, 1, header = TRUE, colClasses = c(rep("character", 2), rep("integer", 32), rep("numeric", 6)))
-psmTable <- read.table(psmPath, header = TRUE, sep = "\t", stringsAsFactors = FALSE, na.strings = c("NA", ""), comment.char = "", quote = "", colClasses = c(rep("character", 3), "integer", rep("numeric", 4), "integer", rep("character", 2), "integer", rep("character", 3), rep("numeric", 3), "character", "character", rep("numeric", 4), "integer", rep("numeric", 6)))
-logRatioT <- sd(upspTable$adjusted_log_ratio_mean)
+upspTable <- read.xlsx2(upspPath, 1, header = TRUE, colClasses = c(rep("character", 4), rep("numeric", 9), rep("integer", 2), rep("numeric", 4)))
+psmTable <- read.table(psmPath, header = TRUE, sep = "\t", stringsAsFactors = FALSE, na.strings = c("NA", ""), comment.char = "", quote = "", colClasses = c("character", rep("factor", 2), "integer", rep("numeric", 4), "integer", rep("character", 2), "integer", rep("character", 2), "factor", rep("numeric", 4), "character", "factor", rep("numeric", 4), "integer", rep("numeric", 7)))
+logRatioT <- 0.5 * sd(upspTable$Adjusted_log_ratio_mean)
 
 # read spectra
 cat(str_c(Sys.time(), ": Reading and ploting...\n"))
@@ -135,7 +135,7 @@ for (i in seq(1, length(spectraFileNames))) {
     xcmsRawObj <- xcmsRaw(paste(spectraDir, spectraFileNames[i], sep = ""), profstep = 0)
 
     # read ratio table and plot
-    for (j in which((upspTable$BH_FDR <= fdrT) & (abs(upspTable$adjusted_log_ratio_mean) >= logRatioT))) {
+    for (j in which((upspTable$BH_FDR <= fdrT) & (abs(upspTable$Adjusted_log_ratio_mean) >= logRatioT))) {
         subPsmTable <- psmTable[psmTable$UPSP == upspTable[j,]$UPSP,]
 
         if (nrow(subPsmTable) > 0) {

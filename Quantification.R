@@ -4,31 +4,33 @@ rm(list = ls())
 
 options(java.parameters = "-Xmx32g")
 
-library(stringr)
-library(mzR)
-library(xlsx)
-library(Peptides)
-library(Biostrings)
-library(plyr)
-library(parallel)
-library(NOISeq)
-library(stringr)
-library(readr)
+suppressMessages(suppressWarnings(library(stringr)))
+suppressMessages(suppressWarnings(library(mzR)))
+suppressMessages(suppressWarnings(library(xlsx)))
+suppressMessages(suppressWarnings(library(Peptides)))
+suppressMessages(suppressWarnings(library(Biostrings)))
+suppressMessages(suppressWarnings(library(plyr)))
+suppressMessages(suppressWarnings(library(parallel)))
+suppressMessages(suppressWarnings(library(NOISeq)))
+suppressMessages(suppressWarnings(library(stringr)))
+suppressMessages(suppressWarnings(library(readr)))
 
 
 source("QuantificationFun.R")
 source("AdjustLogRatioBatchEffect.R")
 source("XIC.R")
 
+threadNum <- detectCores()
 
-# parameters. Will be put to command arguement later on
-experimentStructurePath <- "D:\\Dropbox\\Results\\Quantification\\Acetylation\\experiment_structure.tsv"
+commandLine <- FALSE
+
+# parameters. Only for internal use.
 mascotResultDir <- "D:\\Dropbox\\Results\\Mascot\\Acetylation\\"
 spectraDir <- "D:\\Li_group\\Acetylation_raw_data\\"
-fastaPath <- "D:\\Dropbox\\Results\\Quantification\\Acetylation\\TAIR10_pep_20101214_updated_with_AT3G53420.3.fasta"
 outputDir <- "D:\\Dropbox\\Results\\Quantification\\Acetylation\\"
-allPsmTablePath <- "D:\\Dropbox\\Results\\Quantification\\Acetylation\\all_psm_table.tsv"
-# allPsmTablePath <- ""
+experimentStructurePath <- "D:\\Dropbox\\Results\\Quantification\\Acetylation\\experiment_structure.tsv"
+fastaPath <- "D:\\Dropbox\\Results\\Quantification\\Acetylation\\TAIR10_pep_20101214_updated_with_AT3G53420.3.fasta"
+allPsmTablePath <- "D:\\Dropbox\\Results\\Quantification\\Acetylation\\Table_S1a.tsv"
 nsaf <- FALSE
 sin <- FALSE
 ppmTol <- 20
@@ -42,6 +44,58 @@ performBatchEffectAdjustment <- TRUE
 minCharge <- 2
 maxCharge <- 5
 deltaScoreT <- 10
+
+sdFactor <- 0.5
+bhFdrT <- 0.1
+
+if (commandLine) {
+  args <- commandArgs(trailingOnly = TRUE)
+  
+  if (length(args) != 15) {
+    for (a in args) {
+      cat(str_c(a, "\n"))
+    }
+    stop("Incorrect args.")
+  }
+  
+  mascotResultDir <- args[2]
+  spectraDir <- args[2]
+  outputDir <- args[2]
+  experimentStructurePath <- args[3]
+  fastaPath <- args[4]
+  nsaf <- FALSE
+  sin <- FALSE
+  ppmTol <- as.integer(args[5])
+  rtTol <- as.integer(args[6])
+  psmReplicateT <- as.integer(args[7])
+  labellingReplicateT <- as.integer(args[8])
+  experimentReplicateT <- as.integer(args[9])
+  frT <- as.numeric(args[10])
+  performBatchEffectAdjustment <- args[11] == "1"
+  minCharge <- as.integer(args[12])
+  maxCharge <- as.integer(args[13])
+  deltaScoreT <- as.numeric(args[14])
+}
+
+# print the arguments
+cat("Parameters:\n")
+cat(sprintf("mascotResultDir: %s\n", mascotResultDir))
+cat(sprintf("spectraDir: %s\n", spectraDir))
+cat(sprintf("outputDir: %s\n", outputDir))
+cat(sprintf("experimentStructurePath: %s\n", experimentStructurePath))
+cat(sprintf("fastaPath: %s\n", fastaPath))
+cat(sprintf("nsaf: %d\n", nsaf))
+cat(sprintf("sin: %d\n", sin))
+cat(sprintf("ppmTol: %d\n", ppmTol))
+cat(sprintf("rtTol: %d\n", rtTol))
+cat(sprintf("psmReplicateT: %d\n", psmReplicateT))
+cat(sprintf("labellingReplicateT: %d\n", labellingReplicateT))
+cat(sprintf("experimentReplicateT: %d\n", experimentReplicateT))
+cat(sprintf("frT: %f\n", frT))
+cat(sprintf("performBatchEffectAdjustment: %d\n", performBatchEffectAdjustment))
+cat(sprintf("minCharge: %d\n", minCharge))
+cat(sprintf("maxCharge: %d\n", maxCharge))
+cat(sprintf("deltaScoreT: %f\n", deltaScoreT))
 
 # constants
 modTable <- data.frame(mod = character(), mass = character(), stringsAsFactors = FALSE)
@@ -64,28 +118,37 @@ if (str_length(allPsmTablePath) > 0) {
   psmTableFinal <- read.table(allPsmTablePath, sep = "\t", quote = "", header = TRUE, comment.char = "", na.strings = c("NA", ""), colClasses = c("character", rep("factor", 2), "integer", rep("numeric", 4), "integer", rep("character", 2), "integer", rep("character", 2), "factor", rep("numeric", 4), "character", "factor", rep("numeric", 4), "integer", rep("numeric", 6)))
 } else {
   cat(str_c(Sys.time(), ": Analyzing each Mascot result...\n", sep = ""))
-  # read protein database
   db <- readAAStringSet(fastaPath)
-  # read Mascot results, calculate spectral counting meassure, and generate a PSM table
   psmTableList <- lapply(experimentStructure$run_name, analyzeEachRun, mascotResultDir, spectraDir, experimentStructure, db, ppmTol, rtTol, minCharge, maxCharge, threadNum, modTable, lightLabel, heavyLabel, kingMod)
   psmTableFinal <- ldply(psmTableList, data.frame)
-  write.table(psmTableFinal, str_c(outputDir, "all_psm_table.tsv"), quote = FALSE, sep = "\t", na = "", row.names = FALSE)
+  write.table(psmTableFinal, str_c(outputDir, "Table_S1a.tsv"), quote = FALSE, sep = "\t", na = "", row.names = FALSE)
 }
 
 cl <- makeCluster(threadNum)
 clusterExport(cl, c("str_detect", "str_c", "str_match_all", "str_locate", "str_split", "psmReplicateT"))
 
-cat(str_c(Sys.time(), ": Filtering PSMs based on delta score threshold ", deltaScoreT, "...\n", sep = ""))
+cat(str_c(Sys.time(), ": Filtering PSMs based on delta score threshold ", deltaScoreT, " (Table_S1b)...\n", sep = ""))
 psmTableFinal <- psmTableFinal[psmTableFinal$delta_score >= deltaScoreT,]
+write.table(psmTableFinal, str_c(outputDir, "Table_S1b.tsv"), quote = FALSE, sep = "\t", na = "", row.names = FALSE)
 
-cat(str_c(Sys.time(), ": Generating Pretable1...\n", sep = ""))
-allPeptide <- unique(psmTableFinal$label_free_peptide)
-peptideTableList <- parLapply(cl, seq(1, length(allPeptide)), generatePeptideTable, allPeptide, psmTableFinal)
-peptideTable <- ldply(peptideTableList, data.frame)
-write.xlsx2(peptideTable, str_c(outputDir, "Pretable1.xlsx"), showNA = FALSE, row.names = FALSE, col.names = TRUE)
+# cat(str_c(Sys.time(), ": Generating a Zipf's law table...\n", sep = ""))
+# allPeptide <- unique(psmTableFinal$label_free_peptide)
+# tempList <- parLapply(cl, seq(1, length(allPeptide)), function(idx, allPeptide, psmTableFinal) {
+#   subTable <- psmTableFinal[psmTableFinal$label_free_peptide == allPeptide[idx], ]
+#   outputTable <- data.frame(Label_Free_Peptide = allPeptide[idx], Light_Count = sum(subTable$label_type == "L"), Heavy_Count = sum(subTable$label_type == "H"))
+#   return(outputTable)
+# }, allPeptide, psmTableFinal)
+# tempTable <- ldply(tempList, data.frame)
+# countArray <- unlist(tempTable$Light_Count, tempTable$Heavy_Count)
+# countArray <- sort(countArray[is.finite(countArray)], decreasing = TRUE)
+# p <- countArray / sum(countArray)
+# lzipf <- function(s,N) -s * log(seq(1, N)) - log(sum(1 / seq(1, N)^s))
+# opt.f <- function(s) sum((log(p) - lzipf(s, length(p)))^2)
+# opt <- optimize(opt.f, c(0, 1))
+# plot(seq(1, length(p)), p, log = "xy")
+# lines(seq(1, length(p)), exp(lzipf(opt$minimum, length(p))), col = 2)
 
-# summarize number of king modification site in each protein from all PSMs
-cat(str_c(Sys.time(), ": Summarizing protein-modification count from all PSMs...\n", sep = ""))
+cat(str_c(Sys.time(), ": Summarizing protein-modification count from all PSMs (all_protein_mod_count)...\n", sep = ""))
 allUpsp <- unlist(str_split(unlist(psmTableFinal$UPSP), ";"))
 allProId <- unique(unlist(str_extract(allUpsp, "[^-]+")))
 proteinModTable <- data.frame(proteinId = allProId, site = NA, stringsAsFactors = FALSE)
@@ -100,22 +163,19 @@ for (upsp in allUpsp) {
 proteinModNumTable <- data.frame(proteinId = allProId, count = unlist(lapply(proteinModTable$site, length)))
 write.table(proteinModNumTable, str_c(outputDir, "all_protein_mod_count.tsv"), quote = FALSE, sep = "\t", na = "", row.names = FALSE)
 
-cat(str_c(Sys.time(), ": Filtering PSMs with more than ", psmReplicateT, " replicates...\n", sep = ""))
+cat(str_c(Sys.time(), ": Filtering PSMs with more than ", psmReplicateT, " replicates (Table_S1c)...\n", sep = ""))
 allPeptide <- unique(psmTableFinal$original_peptide)
-filteredIdx <- unlist(parLapply(cl, allPeptide, filterBasedOnPsmReplication, psmTableFinal))
+filteredIdx <- unlist(parLapply(cl, allPeptide, filterBasedOnPsmReplication, psmTableFinal, psmReplicateT))
 psmTableFinal <- psmTableFinal[filteredIdx,]
+write.table(psmTableFinal, str_c(outputDir, "Table_S1c.tsv"), quote = FALSE, sep = "\t", na = "", row.names = FALSE)
 
-write.table(psmTableFinal, str_c(outputDir, "psm_table.tsv"), quote = FALSE, sep = "\t", na = "", row.names = FALSE)
-
-# generate Pretable2
-cat(str_c(Sys.time(), ": Generating Pretable2...\n", sep = ""))
+cat(str_c(Sys.time(), ": Generating Table_S1d...\n", sep = ""))
 allPeptide <- unique(psmTableFinal$label_free_peptide)
 peptideTableList <- parLapply(cl, seq(1, length(allPeptide)), generatePeptideTable, allPeptide, psmTableFinal)
 peptideTable <- ldply(peptideTableList, data.frame)
-write.xlsx2(peptideTable, str_c(outputDir, "Pretable2.xlsx"), showNA = FALSE, row.names = FALSE, col.names = TRUE)
+write.xlsx2(peptideTable, str_c(outputDir, "Table_S1d.xlsx"), showNA = FALSE, row.names = FALSE, col.names = TRUE)
 
-# summarize number of king modification site in each protein
-cat(str_c(Sys.time(), ": Summarizing protein-modification count from filtered PSMs...\n", sep = ""))
+cat(str_c(Sys.time(), ": Summarizing protein-modification count from filtered PSMs (protein_mod_count)...\n", sep = ""))
 allUpsp <- unlist(str_split(unlist(psmTableFinal$UPSP), ";"))
 allProId <- unique(unlist(str_extract(allUpsp, "[^-]+")))
 proteinModTable <- data.frame(proteinId = allProId, site = NA, stringsAsFactors = FALSE)
@@ -130,29 +190,32 @@ for (upsp in allUpsp) {
 proteinModNumTable <- data.frame(proteinId = allProId, count = unlist(lapply(proteinModTable$site, length)))
 write.table(proteinModNumTable, str_c(outputDir, "protein_mod_count.tsv"), quote = FALSE, sep = "\t", na = "", row.names = FALSE)
 
-# filtering based on spectral counting criteria
-cat(str_c(Sys.time(), ": Filtering PSMs based on spectral counting criteria...\n", sep = ""))
+cat(str_c(Sys.time(), ": Filtering PSMs based on spectral counting criteria (Table_S2a)...\n", sep = ""))
 allPeptide <- unique(psmTableFinal$label_free_peptide)
 filteredIdx <- unlist(parLapply(cl, allPeptide, filterBasedOnSpectralCountCriteria, psmTableFinal, labellingReplicateT, experimentReplicateT, frT))
 psmTableFinal <- psmTableFinal[filteredIdx,]
+allPeptide <- unique(psmTableFinal$label_free_peptide)
+peptideTableList <- parLapply(cl, seq(1, length(allPeptide)), generatePeptideTable, allPeptide, psmTableFinal)
+peptideTable <- ldply(peptideTableList, data.frame)
+write.xlsx2(peptideTable, str_c(outputDir, "Table_S2a.xlsx"), showNA = FALSE, row.names = FALSE, col.names = TRUE)
 
-# normalized log-ratio
+cat(str_c(Sys.time(), ": Normalizing log-ratios...\n", sep = ""))
 psmTableFinal["normalized_log_ratio"] <- NA
 allBatchType <- unique(experimentStructure$batch_type)
 for (batchType in allBatchType) {
   logRatioMedian <- median(psmTableFinal[psmTableFinal$batch_type == batchType,]$log_ratio, na.rm = TRUE)
   psmTableFinal[psmTableFinal$batch_type == batchType,]$normalized_log_ratio <- psmTableFinal[psmTableFinal$batch_type == batchType,]$log_ratio - logRatioMedian
 }
+
+cat(str_c(Sys.time(), ": Generating filtered_psm_table...\n", sep = ""))
 write.table(psmTableFinal, str_c(outputDir, "filtered_psm_table.tsv"), quote = FALSE, sep = "\t", na = "", row.names = FALSE)
 
-# convert PSM table to UPSP table
-cat(str_c(Sys.time(), ": Converting PSMs to UPSPs...\n", sep = ""))
+cat(str_c(Sys.time(), ": Converting peptides to UPSPs...\n", sep = ""))
 allUpsp <- unique(psmTableFinal$UPSP)
 upspTableList <- parLapply(cl, seq(1, length(allUpsp)), generateUpspTable, allUpsp, psmTableFinal)
 upspTableFinal <- ldply(upspTableList, data.frame)
 
 if (nsaf) {
-  # NSAF
   cat(str_c(Sys.time(), ": Calculating NSAF...\n", sep = ""))
   allExpType <- sort(unique(experimentStructure$experiment_type))
   nsafMatrix <- matrix(unlist(parLapply(cl, upspTableFinal$UPSP, calculateNsaf, psmTableFinal, experimentStructure)), nrow = nrow(upspTableFinal), byrow = TRUE)
@@ -172,7 +235,6 @@ if (nsaf) {
 }
 
 if (sin) {
-  # SIn
   cat(str_c(Sys.time(), ": Calculating SIn\n", sep = ""))
   sinMatrix <- matrix(unlist(parLapply(cl, upspTableFinal$UPSP, calculateSin, psmTableFinal, experimentStructure)), nrow = nrow(upspTableFinal), byrow = TRUE)
   rownames(sinMatrix) <- unlist(upspTableFinal$UPSP)
@@ -202,7 +264,28 @@ if (performBatchEffectAdjustment) {
   upspTableFinal <- upspTableFinal[is.finite(upspTableFinal$p_value),]
   upspTableFinal["BH_FDR"] <- p.adjust(upspTableFinal$p_value, method = "BH")
 }
-write.xlsx2(upspTableFinal, str_c(outputDir, "Pretable3.xlsx"), showNA = FALSE, row.names = FALSE, col.names = TRUE)
+
+cat(str_c(Sys.time(), ": Generating Table_S2b...\n", sep = ""))
+write.xlsx2(upspTableFinal, str_c(outputDir, "Table_S2b.xlsx"), showNA = FALSE, row.names = FALSE, col.names = TRUE)
+
+cat(str_c(Sys.time(), ": Generating Table_3a...\n", sep = ""))
+if (performBatchEffectAdjustment) {
+  logRatioT <- sdFactor * sd(upspTableFinal$Adjusted_log_ratio_mean)
+  upspTableFinal <- upspTableFinal[upspTableFinal$BH_FDR <= bhFdrT & abs(upspTableFinal$Adjusted_log_ratio_mean) >= logRatioT,]
+} else {
+  logRatioT <- sdFactor * sd(upspTableFinal$Log_ratio_mean)
+  upspTableFinal <- upspTableFinal[upspTableFinal$BH_FDR <= bhFdrT & abs(upspTableFinal$Log_ratio_mean) >= logRatioT,]
+}
+write.xlsx2(upspTableFinal, str_c(outputDir, "Table_S3a.xlsx"), showNA = FALSE, row.names = FALSE, col.names = TRUE)
+
+cat(str_c(Sys.time(), ": Generating Table_3b...\n", sep = ""))
+temp <- sum(upspTableFinal$Number_of_log_ratio_from_forward) + sum(upspTableFinal$Number_of_log_ratio_from_reciprocal)
+if (performBatchEffectAdjustment) {
+  upspTableFinal$x <- (upspTableFinal$Number_of_log_ratio_from_forward + upspTableFinal$Number_of_log_ratio_from_reciprocal) * (2 ^ upspTableFinal$Adjusted_log_ratio_mean) / temp
+} else {
+  upspTableFinal$x <- (upspTableFinal$Number_of_log_ratio_from_forward + upspTableFinal$Number_of_log_ratio_from_reciprocal) * (2 ^ upspTableFinal$Log_ratio_mean) / temp
+}
+write.xlsx2(upspTableFinal, str_c(outputDir, "Table_S3b.xlsx"), showNA = FALSE, row.names = FALSE, col.names = TRUE)
 
 closeAllConnections()
 cat(str_c(Sys.time(), ": Done!\n"), sep = "")
