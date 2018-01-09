@@ -104,6 +104,7 @@ modTable <- rbind(modTable, data.frame(mod = "\\(Dimethyl:2H\\(4\\)13C\\(2\\)\\)
 modTable <- rbind(modTable, data.frame(mod = "\\(Acetyl\\)", mass = "(42.01)", stringsAsFactors = FALSE))
 modTable <- rbind(modTable, data.frame(mod = "\\(Oxidation\\)", mass = "(15.99)", stringsAsFactors = FALSE))
 modTable <- rbind(modTable, data.frame(mod = "\\(Carbamidomethyl\\)", mass = "(57.02)", stringsAsFactors = FALSE))
+modTable <- rbind(modTable, data.frame(mod = "\\(Deamidated\\)", mass = "(0.98)", stringsAsFactors = FALSE))
 lightLabel <- "\\(28.03\\)"
 heavyLabel <- "\\(34.06\\)"
 labelDiff <- 6.03
