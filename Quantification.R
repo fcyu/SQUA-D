@@ -105,6 +105,7 @@ modTable <- rbind(modTable, data.frame(mod = "\\(Acetyl\\)", mass = "(42.01)", s
 modTable <- rbind(modTable, data.frame(mod = "\\(Oxidation\\)", mass = "(15.99)", stringsAsFactors = FALSE))
 modTable <- rbind(modTable, data.frame(mod = "\\(Carbamidomethyl\\)", mass = "(57.02)", stringsAsFactors = FALSE))
 modTable <- rbind(modTable, data.frame(mod = "\\(Deamidated\\)", mass = "(0.98)", stringsAsFactors = FALSE))
+
 lightLabel <- "\\(28.03\\)"
 heavyLabel <- "\\(34.06\\)"
 labelDiff <- 6.03
@@ -131,23 +132,6 @@ clusterExport(cl, c("str_detect", "str_c", "str_match_all", "str_locate", "str_s
 cat(str_c(Sys.time(), ": Filtering PSMs based on delta score threshold ", deltaScoreT, " (Table_S1b)...\n", sep = ""))
 psmTableFinal <- psmTableFinal[psmTableFinal$delta_score >= deltaScoreT,]
 write.table(psmTableFinal, str_c(outputDir, "Table_S1b.tsv"), quote = FALSE, sep = "\t", na = "", row.names = FALSE)
-
-# cat(str_c(Sys.time(), ": Generating a Zipf's law table...\n", sep = ""))
-# allPeptide <- unique(psmTableFinal$label_free_peptide)
-# tempList <- parLapply(cl, seq(1, length(allPeptide)), function(idx, allPeptide, psmTableFinal) {
-#   subTable <- psmTableFinal[psmTableFinal$label_free_peptide == allPeptide[idx], ]
-#   outputTable <- data.frame(Label_Free_Peptide = allPeptide[idx], Light_Count = sum(subTable$label_type == "L"), Heavy_Count = sum(subTable$label_type == "H"))
-#   return(outputTable)
-# }, allPeptide, psmTableFinal)
-# tempTable <- ldply(tempList, data.frame)
-# countArray <- unlist(tempTable$Light_Count, tempTable$Heavy_Count)
-# countArray <- sort(countArray[is.finite(countArray)], decreasing = TRUE)
-# p <- countArray / sum(countArray)
-# lzipf <- function(s,N) -s * log(seq(1, N)) - log(sum(1 / seq(1, N)^s))
-# opt.f <- function(s) sum((log(p) - lzipf(s, length(p)))^2)
-# opt <- optimize(opt.f, c(0, 1))
-# plot(seq(1, length(p)), p, log = "xy")
-# lines(seq(1, length(p)), exp(lzipf(opt$minimum, length(p))), col = 2)
 
 cat(str_c(Sys.time(), ": Summarizing protein-modification count from all PSMs (all_protein_mod_count)...\n", sep = ""))
 allUpsp <- unlist(str_split(unlist(psmTableFinal$UPSP), ";"))
