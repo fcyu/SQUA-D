@@ -199,6 +199,34 @@ calPValue <- function(expDataEntry) {
     }
 }
 
+getFR <- function(batchName) {
+  if (batchName == "m1" || batchName == "m2" || batchName == "m3" || batchName == "m4" || batchName == "m5" || batchName == "m6" || batchName == "m7" || batchName == "m8" || batchName == "m9") {
+    return("F")
+  } else {
+    return("R")
+  }
+}
+
+getTMB <- function(batchName) {
+  if (batchName == "m1" || batchName == "m4" || batchName == "m7" || batchName == "m10" || batchName == "m13" || batchName == "m16") {
+    return("M")
+  } else if (batchName == "m3" || batchName == "m6" || batchName == "m9" || batchName == "m12" || batchName == "m15" || batchName == "m18") {
+    return("B")
+  } else {
+    return("T")
+  }
+}
+
+getBiologicalReplication <- function(batchName) {
+  if ((batchName == "m1") || (batchName == "m2") || (batchName == "m3") || (batchName == "m10") || (batchName == "m11") || (batchName == "m12")) {
+    return(1)
+  } else if ((batchName == "m4") || (batchName == "m5") || (batchName == "m6") || (batchName == "m13") || (batchName == "m14") || (batchName == "m15")) {
+    return(2)
+  } else {
+    return(3)
+  }
+}
+
 
 adjustBatchEffect <- function(upspTable, psmTable, debug = FALSE) {
     allBatchType <- str_sort(unique(psmTable$batch_type))
@@ -218,7 +246,21 @@ adjustBatchEffect <- function(upspTable, psmTable, debug = FALSE) {
     }
 
     adjustedData <- adjust(expData, length(allBatchType), meanOnly = TRUE, plotPrior = debug)
+    
+    # build a adjusted data.frame
+    allDF <- data.frame(logRatio = numeric(), FR = character(), biologicalReplicates = numeric(), tmb = character())
+    for (i in seq(1, length(adjustedData))) {
+      Y <- adjustedData[[i]]$Y
+      batchStructure <- expData[[i]]$batchStructure
+      tempIdx <- apply(batchStructure, 1, function(x) {which(x == TRUE)})
+      batchNames <- colnames(batchStructure)[tempIdx]
+      tempDF <- data.frame(logRatio = Y, FR = unlist(lapply(batchNames, getFR)), biologicalReplicates = unlist(lapply(batchNames, getBiologicalReplication)), tmb = unlist(lapply(batchNames, getTMB)))
+      allDF <- rbind(allDF, tempDF)
+    }
+    
 
+    write.table(allDF, "adjusted_table.tsv", quote = FALSE, sep = "\t", row.names = FALSE, col.names = TRUE)
+    
     upspTable["Adjusted_log_ratio_mean"] <- unlist(lapply(adjustedData, function(x) { mean(x$Y, na.rm = TRUE) }))
     upspTable["Adjusted_log_ratio_sd"] <- unlist(lapply(adjustedData, function(x) { sd(x$Y, na.rm = TRUE) }))
     upspTable["p_value"] <- unlist(lapply(adjustedData, calPValue))
