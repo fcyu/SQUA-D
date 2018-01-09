@@ -212,7 +212,7 @@ xic <- function(spectraPath, psmTable, ppmTol, rtTol, minCharge, maxCharge, thre
     tempIdx <- which((psmTable$label_type == "H") & (psmTable[i,]$label_free_peptide == psmTable$label_free_peptide))
     if (length(tempIdx) > 0) {
       j <- tempIdx[which.min(abs(psmTable[i,]$rt - psmTable[tempIdx,]$rt))]
-      if (abs(psmTable[i,]$rt_left < psmTable[j, ]$rt_right) || abs(psmTable[i,]$rt_right < psmTable[j,]$rt_left)) {
+      if (psmTable[i,]$rt_left < psmTable[j, ]$rt_right || psmTable[i,]$rt_right < psmTable[j,]$rt_left) {
         psmTable[i,]$another_scan_num <- psmTable[j,]$scan_num
         psmTable[i,]$another_rt <- psmTable[j,]$rt_corrected
         psmTable[i,]$another_rt_left <- psmTable[j,]$rt_left
