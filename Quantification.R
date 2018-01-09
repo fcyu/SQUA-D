@@ -2,11 +2,9 @@
 
 rm(list = ls())
 
-options(java.parameters = "-Xmx32g")
 
 suppressMessages(suppressWarnings(library(stringr)))
 suppressMessages(suppressWarnings(library(mzR)))
-suppressMessages(suppressWarnings(library(xlsx)))
 suppressMessages(suppressWarnings(library(Peptides)))
 suppressMessages(suppressWarnings(library(Biostrings)))
 suppressMessages(suppressWarnings(library(plyr)))
@@ -158,7 +156,7 @@ cat(str_c(Sys.time(), ": Generating Table_S1d...\n", sep = ""))
 allPeptide <- unique(psmTableFinal$label_free_peptide)
 peptideTableList <- parLapply(cl, seq(1, length(allPeptide)), generatePeptideTable, allPeptide, psmTableFinal)
 peptideTable <- ldply(peptideTableList, data.frame)
-write.xlsx2(peptideTable, str_c(outputDir, "Table_S1d.xlsx"), showNA = FALSE, row.names = FALSE, col.names = TRUE)
+write.table(peptideTable, str_c(outputDir, "Table_S1d.tsv"), quote = FALSE, sep = "\t", na = "", row.names = FALSE)
 
 cat(str_c(Sys.time(), ": Summarizing protein-modification count from filtered PSMs (protein_mod_count)...\n", sep = ""))
 allUpsp <- unlist(str_split(unlist(psmTableFinal$UPSP), ";"))
@@ -182,7 +180,7 @@ psmTableFinal <- psmTableFinal[filteredIdx,]
 allPeptide <- unique(psmTableFinal$label_free_peptide)
 peptideTableList <- parLapply(cl, seq(1, length(allPeptide)), generatePeptideTable, allPeptide, psmTableFinal)
 peptideTable <- ldply(peptideTableList, data.frame)
-write.xlsx2(peptideTable, str_c(outputDir, "Table_S2a.xlsx"), showNA = FALSE, row.names = FALSE, col.names = TRUE)
+write.table(peptideTable, str_c(outputDir, "Table_S2a.tsv"), quote = FALSE, sep = "\t", na = "", row.names = FALSE)
 
 cat(str_c(Sys.time(), ": Normalizing log-ratios...\n", sep = ""))
 psmTableFinal["normalized_log_ratio"] <- NA
@@ -251,7 +249,7 @@ if (performBatchEffectAdjustment) {
 }
 
 cat(str_c(Sys.time(), ": Generating Table_S2b...\n", sep = ""))
-write.xlsx2(upspTableFinal, str_c(outputDir, "Table_S2b.xlsx"), showNA = FALSE, row.names = FALSE, col.names = TRUE)
+write.table(upspTableFinal, str_c(outputDir, "Table_S2b.tsv"), quote = FALSE, sep = "\t", na = "", row.names = FALSE)
 
 cat(str_c(Sys.time(), ": Generating Table_3a...\n", sep = ""))
 if (performBatchEffectAdjustment) {
@@ -261,7 +259,7 @@ if (performBatchEffectAdjustment) {
   logRatioT <- sdFactor * sd(upspTableFinal$Log_ratio_mean)
   upspTableFinal <- upspTableFinal[upspTableFinal$BH_FDR <= bhFdrT & abs(upspTableFinal$Log_ratio_mean) >= logRatioT,]
 }
-write.xlsx2(upspTableFinal, str_c(outputDir, "Table_S3a.xlsx"), showNA = FALSE, row.names = FALSE, col.names = TRUE)
+write.table(upspTableFinal, str_c(outputDir, "Table_S3a.tsv"), quote = FALSE, sep = "\t", na = "", row.names = FALSE)
 
 cat(str_c(Sys.time(), ": Generating Table_3b...\n", sep = ""))
 temp <- sum(upspTableFinal$Number_of_log_ratio_from_forward) + sum(upspTableFinal$Number_of_log_ratio_from_reciprocal)
@@ -270,7 +268,7 @@ if (performBatchEffectAdjustment) {
 } else {
   upspTableFinal$x <- (upspTableFinal$Number_of_log_ratio_from_forward + upspTableFinal$Number_of_log_ratio_from_reciprocal) * (2 ^ upspTableFinal$Log_ratio_mean) / temp
 }
-write.xlsx2(upspTableFinal, str_c(outputDir, "Table_S3b.xlsx"), showNA = FALSE, row.names = FALSE, col.names = TRUE)
+write.table(upspTableFinal, str_c(outputDir, "Table_S3b.tsv"), quote = FALSE, sep = "\t", na = "", row.names = FALSE)
 
 closeAllConnections()
 cat(str_c(Sys.time(), ": Done!\n"), sep = "")
