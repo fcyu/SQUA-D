@@ -29,6 +29,7 @@ outputDir <- "D:\\Dropbox\\Results\\Quantification\\Acetylation\\"
 experimentStructurePath <- "D:\\Dropbox\\Results\\Quantification\\Acetylation\\experiment_structure.tsv"
 fastaPath <- "D:\\Dropbox\\Results\\Quantification\\Acetylation\\TAIR10_pep_20101214_updated_with_AT3G53420.3.fasta"
 allPsmTablePath <- "D:\\Dropbox\\Results\\Quantification\\Acetylation\\Table_S1a.tsv"
+allPsmTablePath <- ""
 nsaf <- FALSE
 sin <- FALSE
 ppmTol <- 20
